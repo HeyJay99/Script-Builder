@@ -31,6 +31,18 @@ with st.sidebar:
 
     selected_company = company_options.get(selected_name) if selected_name != "(직접 입력)" else None
 
+    # 업체 선택이 바뀌면 입력 필드를 해당 업체 정보로 교체
+    if st.session_state.get("_last_company") != selected_name:
+        st.session_state["_last_company"] = selected_name
+        if selected_company:
+            st.session_state["product_info"] = selected_company["product_info"]
+            st.session_state["brand_direction"] = selected_company["brand_direction"]
+            st.session_state["target"] = selected_company["target"]
+        else:
+            st.session_state["product_info"] = ""
+            st.session_state["brand_direction"] = ""
+            st.session_state["target"] = ""
+
     st.divider()
 
     # 업체 저장 / 수정
