@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_MODEL_SCRIPT = "gemini-1.5-flash"
-_MODEL_TRANSCRIBE = "gemini-1.5-flash"
+_MODEL_SCRIPT = "gemini-1.5-flash-latest"
+_MODEL_TRANSCRIBE = "gemini-1.5-flash-latest"
 
 
 def _get_api_key() -> str:
