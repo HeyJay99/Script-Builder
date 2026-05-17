@@ -10,7 +10,7 @@ create table if not exists companies (
   updated_at    timestamptz not null default now()
 );
 
-create table if not exists references (
+create table if not exists script_refs (
   id          uuid primary key default gen_random_uuid(),
   company_id  uuid references companies(id) on delete set null,
   title       text not null,
@@ -35,4 +35,4 @@ create trigger companies_updated_at
 
 -- RLS 비활성화 (팀 내부 도구용 — 필요 시 활성화)
 alter table companies disable row level security;
-alter table references disable row level security;
+alter table script_refs disable row level security;

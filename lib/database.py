@@ -93,7 +93,7 @@ def delete_company(company_id: str) -> None:
 
 def list_references(company_id: Optional[str] = None) -> list[dict]:
     client = _get_client()
-    query = client.table("references").select("*").order("created_at", desc=True)
+    query = client.table("script_refs").select("*").order("created_at", desc=True)
     if company_id:
         query = query.eq("company_id", company_id)
     result = query.execute()
@@ -110,10 +110,10 @@ def save_reference(
     payload: dict = {"title": title, "content": content, "source": source}
     if company_id:
         payload["company_id"] = company_id
-    result = client.table("references").insert(payload).execute()
+    result = client.table("script_refs").insert(payload).execute()
     return result.data[0]
 
 
 def delete_reference(reference_id: str) -> None:
     client = _get_client()
-    client.table("references").delete().eq("id", reference_id).execute()
+    client.table("script_refs").delete().eq("id", reference_id).execute()
