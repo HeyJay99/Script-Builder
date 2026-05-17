@@ -73,10 +73,15 @@ if extract_btn and media_file:
         st.error(f"추출 오류: {e}")
         st.stop()
 
-    st.text_area("결과", value=extracted, height=400)
     st.session_state["extracted_script"] = extracted
 
-    # 결과 액션
+# ── 추출 결과 & 액션 (session_state 기반으로 유지) ────────────────────────────
+if st.session_state.get("extracted_script"):
+    extracted = st.session_state["extracted_script"]
+
+    st.subheader("추출된 스크립트")
+    st.text_area("결과", value=extracted, height=400, key="extracted_display")
+
     dl_col, save_col = st.columns(2)
     with dl_col:
         st.download_button(

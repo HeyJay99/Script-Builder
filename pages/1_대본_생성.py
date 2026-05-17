@@ -208,44 +208,42 @@ if generate_btn:
             st.error(f"생성 오류: {e}")
             st.stop()
 
-        # 결과 액션
         st.session_state["last_script"] = full_text
-        action_col1, action_col2, action_col3 = st.columns(3)
+        st.session_state["show_ref_save_form"] = False
 
-        with action_col1:
-            st.download_button(
-                "txt 다운로드",
-                data=full_text.encode("utf-8"),
-                file_name="대본.txt",
-                mime="text/plain",
-            )
+# ── 생성 결과 & 액션 (session_state 기반으로 유지) ────────────────────────────
+if st.session_state.get("last_script"):
+    last_script = st.session_state["last_script"]
 
-        with action_col2:
-            # Streamlit에서 클립보드 복사는 JS 사용
-            st.button(
-                "클립보드 복사",
-                on_click=lambda: st.write(
-                    f"<script>navigator.clipboard.writeText({repr(full_text)})</script>",
-                    unsafe_allow_html=True,
-                ),
-                key="copy_btn",
-            )
+    if not generate_btn:
+        st.subheader("생성된 대본")
+        st.markdown(last_script)
 
-        with action_col3:
-            if db_available:
-                if st.button("레퍼런스로 저장", key="save_as_ref"):
-                    st.session_state["show_ref_save_form"] = True
+    action_col1, action_col2, action_col3 = st.columns(3)
 
-        if st.session_state.get("show_ref_save_form") and db_available:
-            with st.form("save_ref_form"):
-                ref_title = st.text_input("레퍼런스 제목", value=f"{selected_name} 생성 대본")
-                submitted = st.form_submit_button("저장")
-                if submitted and ref_title:
-                    db.save_reference(
-                        title=ref_title,
-                        content=full_text,
-                        source="generated",
-                        company_id=selected_company["id"] if selected_company else None,
-                    )
-                    st.success("레퍼런스로 저장되었습니다.")
-                    st.session_state["show_ref_save_form"] = False
+    with action_col1:
+        st.download_button(
+            "txt 다운로드",
+            data=last_script.encode("utf-8"),
+            file_name="대본.txt",
+            mime="text/plain",
+        )
+
+    with action_col3:
+        if db_available:
+            if st.button("레퍼런스로 저장", key="save_as_ref"):
+                st.session_state["show_ref_save_form"] = True
+
+    if st.session_state.get("show_ref_save_form") and db_available:
+        with st.form("save_ref_form"):
+            ref_title = st.text_input("레퍼런스 제목", value=f"{selected_name} 생성 대본")
+            submitted = st.form_submit_button("저장")
+            if submitted and ref_title:
+                db.save_reference(
+                    title=ref_title,
+                    content=last_script,
+                    source="generated",
+                    company_id=selected_company["id"] if selected_company else None,
+                )
+                st.success("레퍼런스로 저장되었습니다.")
+                st.session_state["show_ref_save_form"] = False
