@@ -117,3 +117,32 @@ def save_reference(
 def delete_reference(reference_id: str) -> None:
     client = _get_client()
     client.table("script_refs").delete().eq("id", reference_id).execute()
+
+
+# ── 생성 로그(generated_logs) ────────────────────────────────────────────────
+
+def save_log(company: str, appeal: str, script: str) -> dict:
+    client = _get_client()
+    result = (
+        client.table("generated_logs")
+        .insert({"company": company, "appeal": appeal, "script": script})
+        .execute()
+    )
+    return result.data[0]
+
+
+def list_logs(limit: int = 30) -> list[dict]:
+    client = _get_client()
+    result = (
+        client.table("generated_logs")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def delete_log(log_id: str) -> None:
+    client = _get_client()
+    client.table("generated_logs").delete().eq("id", log_id).execute()

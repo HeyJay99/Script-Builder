@@ -2,7 +2,6 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from datetime import datetime
 import streamlit as st
 from lib.prompt import SYSTEM_PROMPT, build_user_message, read_reference_file, fetch_url_content
 from lib.gemini import generate_script_stream
@@ -218,14 +217,11 @@ if generate_btn:
         st.session_state["last_script"] = full_text
         st.session_state["show_ref_save_form"] = False
 
-        if "script_history" not in st.session_state:
-            st.session_state["script_history"] = []
-        st.session_state["script_history"].insert(0, {
-            "time": datetime.now().strftime("%H:%M"),
-            "company": selected_name,
-            "appeal": key_appeal,
-            "script": full_text,
-        })
+        if db_available:
+            try:
+                db.save_log(company=selected_name, appeal=key_appeal, script=full_text)
+            except Exception:
+                pass
 
 # ── 생성 결과 & 액션 ──────────────────────────────────────────────────────────
 if st.session_state.get("last_script"):
@@ -264,19 +260,36 @@ if st.session_state.get("last_script"):
                 st.success("레퍼런스로 저장되었습니다.")
                 st.session_state["show_ref_save_form"] = False
 
-# ── 세션 히스토리 ─────────────────────────────────────────────────────────────
-history = st.session_state.get("script_history", [])
-if len(history) > 1:
+# ── 생성 로그 (DB) ───────────────────────────────────────────────────────────
+if db_available:
     st.divider()
-    st.subheader("이번 세션 생성 로그")
-    for i, item in enumerate(history[1:], 1):
-        label = f"[{item['time']}] {item['company']} — 소구: {item['appeal']}"
-        with st.expander(label):
-            st.markdown(item["script"])
-            st.download_button(
-                "txt 다운로드",
-                data=item["script"].encode("utf-8"),
-                file_name=f"대본_{item['time'].replace(':', '')}.txt",
-                mime="text/plain",
-                key=f"dl_hist_{i}",
-            )
+    st.subheader("생성 로그")
+    try:
+        logs = db.list_logs(limit=30)
+        current_script = st.session_state.get("last_script", "")
+        # 방금 생성한 것은 이미 위에 표시되므로 제외
+        display_logs = [l for l in logs if l["script"] != current_script]
+
+        if display_logs:
+            for i, item in enumerate(display_logs):
+                created = item.get("created_at", "")[:16].replace("T", " ")
+                label = f"[{created}] {item['company']} — 소구: {item['appeal']}"
+                with st.expander(label):
+                    st.markdown(item["script"])
+                    col_dl, col_del = st.columns([1, 1])
+                    with col_dl:
+                        st.download_button(
+                            "txt 다운로드",
+                            data=item["script"].encode("utf-8"),
+                            file_name=f"대본_{created.replace(' ', '_')}.txt",
+                            mime="text/plain",
+                            key=f"dl_log_{i}",
+                        )
+                    with col_del:
+                        if st.button("삭제", key=f"del_log_{i}", type="secondary"):
+                            db.delete_log(item["id"])
+                            st.rerun()
+        else:
+            st.info("아직 생성된 로그가 없습니다.")
+    except Exception as e:
+        st.error(f"로그 조회 실패: {e}")
