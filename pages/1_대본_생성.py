@@ -2,8 +2,9 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+from datetime import datetime
 import streamlit as st
-from lib.prompt import SYSTEM_PROMPT, build_user_message, read_reference_file
+from lib.prompt import SYSTEM_PROMPT, build_user_message, read_reference_file, fetch_url_content
 from lib.gemini import generate_script_stream
 from lib import database as db
 
@@ -31,7 +32,7 @@ with st.sidebar:
 
     selected_company = company_options.get(selected_name) if selected_name != "(직접 입력)" else None
 
-    # 업체 선택이 바뀌면 입력 필드를 해당 업체 정보로 교체
+    # 업체 선택 변경 시 입력 필드 갱신
     if st.session_state.get("_last_company") != selected_name:
         st.session_state["_last_company"] = selected_name
         if selected_company:
@@ -45,7 +46,6 @@ with st.sidebar:
 
     st.divider()
 
-    # 업체 저장 / 수정
     with st.expander("업체 저장 / 수정", expanded=False):
         save_name = st.text_input("업체명", value=selected_company["name"] if selected_company else "")
         if st.button("현재 입력 내용으로 저장", disabled=not db_available):
@@ -69,7 +69,6 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"저장 실패: {e}")
 
-    # 업체 삭제
     if selected_company and db_available:
         with st.expander("업체 삭제", expanded=False):
             if st.button("이 업체 삭제", type="secondary"):
@@ -85,21 +84,18 @@ with col_left:
 
     product_info = st.text_area(
         "제품 정보",
-        value=selected_company["product_info"] if selected_company else "",
         height=130,
         placeholder="제품명, 가격, 구성, 특징, 상세페이지 내용 등",
         key="product_info",
     )
     brand_direction = st.text_area(
         "브랜드 / 콘텐츠 방향",
-        value=selected_company["brand_direction"] if selected_company else "",
         height=100,
         placeholder="브랜드 톤, 반드시 살릴 메시지",
         key="brand_direction",
     )
     target = st.text_area(
         "고객 타겟",
-        value=selected_company["target"] if selected_company else "",
         height=100,
         placeholder="타겟의 고민, 상황, 욕망",
         key="target",
@@ -112,15 +108,13 @@ with col_left:
 with col_right:
     st.subheader("레퍼런스 대본")
 
-    # 레퍼런스 탭: 저장된 것 선택 / 파일 업로드 / 직접 입력
-    ref_tab1, ref_tab2, ref_tab3 = st.tabs(["저장된 레퍼런스", "파일 업로드", "직접 입력"])
+    ref_tab1, ref_tab2, ref_tab3, ref_tab4 = st.tabs(["저장된 레퍼런스", "파일 업로드", "직접 입력", "URL 입력"])
 
     reference_text = ""
 
     with ref_tab1:
-        ref_company_id = selected_company["id"] if selected_company else None
         try:
-            refs = db.list_references(ref_company_id) if db_available else []
+            refs = db.list_references() if db_available else []
         except Exception:
             refs = []
 
@@ -128,17 +122,10 @@ with col_right:
             ref_options = {r["title"]: r for r in refs}
             chosen_ref_title = st.selectbox("레퍼런스 선택", list(ref_options.keys()))
             chosen_ref = ref_options[chosen_ref_title]
-            ref_preview = st.text_area(
-                "미리보기",
-                value=chosen_ref["content"],
-                height=200,
-                disabled=True,
-            )
+            st.text_area("미리보기", value=chosen_ref["content"], height=200, disabled=True)
             if st.button("이 레퍼런스 사용", key="use_saved_ref"):
                 st.session_state["active_reference"] = chosen_ref["content"]
-                st.session_state["active_ref_source"] = "saved"
-
-            # 삭제
+                st.session_state["active_ref_source"] = "저장됨"
             if st.button("삭제", key="del_ref", type="secondary"):
                 db.delete_reference(chosen_ref["id"])
                 st.success("삭제되었습니다.")
@@ -158,7 +145,7 @@ with col_right:
                 st.text_area("파일 내용 미리보기", value=file_text, height=180, disabled=True)
                 if st.button("이 파일 내용 사용", key="use_file_ref"):
                     st.session_state["active_reference"] = file_text
-                    st.session_state["active_ref_source"] = "file"
+                    st.session_state["active_ref_source"] = "파일"
             except Exception as e:
                 st.error(f"파일 읽기 실패: {e}")
 
@@ -166,9 +153,29 @@ with col_right:
         direct_text = st.text_area("직접 입력", height=200, placeholder="레퍼런스 대본 내용을 붙여넣으세요.")
         if st.button("직접 입력 내용 사용", key="use_direct_ref"):
             st.session_state["active_reference"] = direct_text
-            st.session_state["active_ref_source"] = "direct"
+            st.session_state["active_ref_source"] = "직접입력"
 
-    # 현재 선택된 레퍼런스 표시
+    with ref_tab4:
+        st.caption("구글 스프레드시트·문서, 일반 웹페이지를 지원합니다. **공개(공유) 링크만 가능**합니다.")
+        url_input = st.text_input("URL 입력", placeholder="https://docs.google.com/spreadsheets/...")
+        if st.button("내용 가져오기", key="fetch_url"):
+            if not url_input.strip():
+                st.error("URL을 입력해주세요.")
+            else:
+                try:
+                    with st.spinner("내용을 가져오는 중..."):
+                        url_content = fetch_url_content(url_input.strip())
+                    st.session_state["url_fetched"] = url_content
+                    st.success("가져오기 완료!")
+                except Exception as e:
+                    st.error(f"가져오기 실패: {e}")
+
+        if st.session_state.get("url_fetched"):
+            st.text_area("가져온 내용", value=st.session_state["url_fetched"], height=180, disabled=True)
+            if st.button("이 내용 사용", key="use_url_ref"):
+                st.session_state["active_reference"] = st.session_state["url_fetched"]
+                st.session_state["active_ref_source"] = "URL"
+
     active_ref = st.session_state.get("active_reference", "")
     if active_ref:
         st.success(f"레퍼런스 적용됨 ({st.session_state.get('active_ref_source', '')})")
@@ -211,7 +218,16 @@ if generate_btn:
         st.session_state["last_script"] = full_text
         st.session_state["show_ref_save_form"] = False
 
-# ── 생성 결과 & 액션 (session_state 기반으로 유지) ────────────────────────────
+        if "script_history" not in st.session_state:
+            st.session_state["script_history"] = []
+        st.session_state["script_history"].insert(0, {
+            "time": datetime.now().strftime("%H:%M"),
+            "company": selected_name,
+            "appeal": key_appeal,
+            "script": full_text,
+        })
+
+# ── 생성 결과 & 액션 ──────────────────────────────────────────────────────────
 if st.session_state.get("last_script"):
     last_script = st.session_state["last_script"]
 
@@ -219,7 +235,7 @@ if st.session_state.get("last_script"):
         st.subheader("생성된 대본")
         st.markdown(last_script)
 
-    action_col1, action_col2, action_col3 = st.columns(3)
+    action_col1, _, action_col3 = st.columns(3)
 
     with action_col1:
         st.download_button(
@@ -247,3 +263,20 @@ if st.session_state.get("last_script"):
                 )
                 st.success("레퍼런스로 저장되었습니다.")
                 st.session_state["show_ref_save_form"] = False
+
+# ── 세션 히스토리 ─────────────────────────────────────────────────────────────
+history = st.session_state.get("script_history", [])
+if len(history) > 1:
+    st.divider()
+    st.subheader("이번 세션 생성 로그")
+    for i, item in enumerate(history[1:], 1):
+        label = f"[{item['time']}] {item['company']} — 소구: {item['appeal']}"
+        with st.expander(label):
+            st.markdown(item["script"])
+            st.download_button(
+                "txt 다운로드",
+                data=item["script"].encode("utf-8"),
+                file_name=f"대본_{item['time'].replace(':', '')}.txt",
+                mime="text/plain",
+                key=f"dl_hist_{i}",
+            )

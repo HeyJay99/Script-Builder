@@ -1,3 +1,6 @@
+import re
+import requests
+
 SYSTEM_PROMPT = """너는 커머스 숏폼 영상 대본 제작자다.
 내가 입력한 자료를 바탕으로 바로 숏폼 영상 대본만 작성해라.
 분석, 설명, 해석, 이유, 체크리스트는 절대 출력하지 마라.
@@ -75,3 +78,37 @@ def read_reference_file(uploaded_file) -> str:
         doc = Document(io.BytesIO(uploaded_file.read()))
         return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
     return ""
+
+
+def fetch_url_content(url: str) -> str:
+    # 구글 스프레드시트
+    sheets_match = re.search(r'spreadsheets/d/([a-zA-Z0-9-_]+)', url)
+    if sheets_match:
+        sheet_id = sheets_match.group(1)
+        gid_match = re.search(r'gid=(\d+)', url)
+        gid = gid_match.group(1) if gid_match else '0'
+        export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+        resp = requests.get(export_url, timeout=15)
+        resp.raise_for_status()
+        return resp.text[:10000]
+
+    # 구글 문서
+    docs_match = re.search(r'document/d/([a-zA-Z0-9-_]+)', url)
+    if docs_match:
+        doc_id = docs_match.group(1)
+        export_url = f"https://docs.google.com/document/d/{doc_id}/export?format=txt"
+        resp = requests.get(export_url, timeout=15)
+        resp.raise_for_status()
+        return resp.text[:10000]
+
+    # 일반 웹페이지
+    resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+    resp.raise_for_status()
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        for tag in soup(["script", "style", "nav", "header", "footer"]):
+            tag.decompose()
+        return soup.get_text(separator='\n', strip=True)[:10000]
+    except ImportError:
+        return resp.text[:10000]
