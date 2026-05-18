@@ -103,6 +103,14 @@ with col_left:
         "주요 소구",
         placeholder="예) 건조, 모공, 탄력 (이번 영상에서 사용할 소구)",
     )
+    video_goal = st.text_input(
+        "영상 목적 (선택)",
+        placeholder="예) 구매 유도, 클릭 유도, 상담 유도",
+    )
+    forbidden_expressions = st.text_input(
+        "금지 표현 (선택)",
+        placeholder="예) 치료, 효과, 보장 — 사용하면 안 되는 단어",
+    )
 
 with col_right:
     st.subheader("레퍼런스 대본")
@@ -199,7 +207,8 @@ if generate_btn:
         st.error(f"필수 입력 항목이 빠져있습니다: {', '.join(missing)}")
     else:
         user_msg = build_user_message(
-            product_info, brand_direction, target, key_appeal, reference_text
+            product_info, brand_direction, target, key_appeal, reference_text,
+            video_goal=video_goal, forbidden_expressions=forbidden_expressions,
         )
         st.subheader("생성된 대본")
         result_placeholder = st.empty()
